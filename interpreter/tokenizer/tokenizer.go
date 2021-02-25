@@ -4,10 +4,11 @@ import (
   "bytes"
   "errors"
   "io"
+  "strconv"
+  "unicode"
 )
 
 var TokenizeError = errors.New("Error in Tokenizer")
-var SourceEmpty = errors.New("No more source left to tokenize")
 
 type Tokenizer struct {
   source  *bytes.Buffer
@@ -35,7 +36,8 @@ func (t *Tokenizer) Scan() bool {
 // GetToken returns next token
 func (t *Tokenizer) GetToken() (Token, error) {
 
-  for t.Scan() {
+Again:
+  if t.Scan() {
     rune, _, err := t.source.ReadRune()
     if err != nil {
       return NullToken, TokenizeError
@@ -44,34 +46,31 @@ func (t *Tokenizer) GetToken() (Token, error) {
     switch string(rune) {
     case "(", ")", "{", "}", ",", ".", "-", "+", ";", "*":
       return Token{
-        Type:  CharTokensMap[string(rune)],
+        Type:  _tokenMap[string(rune)],
         Value: string(rune),
         Line:  t.lineNum,
       }, nil
     case "\t", " ", "\n":
       if string(rune) == "\n" {
-        t.lineNum += 1
+        t.lineNum++
       }
-      continue
+      goto Again
     case "!", "=", ">", "<":
       var nextChar int32
-      for {
-        nextChar, _, err = t.source.ReadRune()
-        if err == nil && string(nextChar) != " " {
-          break
+      nextChar, _, err = t.source.ReadRune()
+      if err != nil || string(nextChar) != "=" {
+        if err == nil {
+          t.source.UnreadRune()
         }
-      }
-      if string(nextChar) == "=" {
         return Token{
-          Type:  CharTokensMap[string(rune)+string(nextChar)],
-          Value: string(rune) + string(nextChar),
+          Type:  _tokenMap[string(rune)],
+          Value: string(rune),
           Line:  t.lineNum,
         }, nil
       }
-      t.source.UnreadRune()
       return Token{
-        Type:  CharTokensMap[string(rune)],
-        Value: string(rune),
+        Type:  _tokenMap[string(rune)+string(nextChar)],
+        Value: string(rune) + string(nextChar),
         Line:  t.lineNum,
       }, nil
     case "&", "|":
@@ -81,14 +80,14 @@ func (t *Tokenizer) GetToken() (Token, error) {
       }
       if string(nextChar) == "&" && string(rune) == "&" {
         return Token{
-          Type:  CharTokensMap["&&"],
+          Type:  _tokenMap["&&"],
           Value: "&&",
           Line:  t.lineNum,
         }, nil
       }
       if string(nextChar) == "|" && string(rune) == "|" {
         return Token{
-          Type:  CharTokensMap["||"],
+          Type:  _tokenMap["||"],
           Value: "||",
           Line:  t.lineNum,
         }, nil
@@ -96,30 +95,82 @@ func (t *Tokenizer) GetToken() (Token, error) {
       return NullToken, TokenizeError
     case "/":
       nextChar, _, err := t.source.ReadRune()
-      if err != nil {
-        return NullToken, TokenizeError
-      }
-      if string(nextChar) != "/" {
+      if err != nil || string(nextChar) != "/" {
         t.source.UnreadRune()
         return Token{
-          Type:  CharTokensMap[string(rune)],
+          Type:  _tokenMap[string(rune)],
           Value: string(rune),
           Line:  t.lineNum,
         }, nil
       }
-      for t.Scan() {
+      var b bytes.Buffer
+      for {
         nextChar, _, err := t.source.ReadRune()
-        if err != nil {
-          return NullToken, TokenizeError
+        if err != nil || string(nextChar) == "\n" {
+          t.lineNum++
+          return Token{
+            Type:  COMMENT,
+            Value: b.String(),
+            Line:  t.lineNum - 1,
+          }, nil
         }
-        if string(nextChar) == "\n" {
-          t.lineNum += 1
-          break
-        }
+        b.WriteRune(nextChar)
       }
-
+    default:
+      t.source.UnreadRune()
+      tk, err := t.getComplexToken()
+      return tk, err
     }
-
   }
-  return NullToken, SourceEmpty
+  return Token{
+    Type:  EOF,
+    Value: "EOF",
+    Line:  t.lineNum,
+  }, nil
+}
+
+func (t *Tokenizer) getComplexToken() (Token, error) {
+  var b bytes.Buffer
+  for t.Scan() {
+    r, _, err := t.source.ReadRune()
+    if err != nil {
+      break
+    }
+    if unicode.IsSpace(r) || unicode.IsSymbol(r) || unicode.IsPunct(r) {
+      if string(r) != "_" {
+        t.source.UnreadRune()
+        break
+      }
+    }
+    b.WriteRune(r)
+  }
+
+  if _, ok := _tokenMap[b.String()]; ok {
+    return Token{
+      Type:  _tokenMap[b.String()],
+      Value: b.String(),
+      Line:  t.lineNum,
+    }, nil
+  }
+
+  if _, err := strconv.ParseFloat(b.String(), 64); err == nil {
+    return Token{
+      Type:  NUMBER,
+      Value: b.String(),
+      Line:  t.lineNum,
+    }, nil
+  }
+  if _, err := strconv.ParseInt(b.String(), 10, 64); err == nil {
+    return Token{
+      Type:  NUMBER,
+      Value: b.String(),
+      Line:  t.lineNum,
+    }, nil
+  }
+
+  return Token{
+    Type:  IDENTIFIER,
+    Value: b.String(),
+    Line:  t.lineNum,
+  }, nil
 }

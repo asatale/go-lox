@@ -46,7 +46,94 @@ const (
   VAR                           // "var"
   WHILE                         // "while"
   EOF                           // EOF
+  COMMENT                       // "// This is a comment"
 )
+
+func (t TokenType) String() string {
+  switch t {
+  case LEFTPAREN:
+    return "("
+  case RIGHTPAREN:
+    return ")"
+  case LEFTBRACE:
+    return "{"
+  case RIGHTBRACE:
+    return "}"
+  case COMMA:
+    return ","
+  case DOT:
+    return "."
+  case MINUS:
+    return "-"
+  case PLUS:
+    return "+"
+  case SEMICOLON:
+    return ";"
+  case DIVIDE:
+    return "/"
+  case MULTIPLY:
+    return "*"
+  case BANG:
+    return "!"
+  case BANGEQUAL:
+    return "!="
+  case EQUAL:
+    return "="
+  case DOUBLEEQUAL:
+    return "=="
+  case GREATER:
+    return ">"
+  case GREATEREQUAL:
+    return ">="
+  case LESS:
+    return "<"
+  case LESSEQUAL:
+    return "<="
+  case IDENTIFIER:
+    return "identifier"
+  case STRING:
+    return "string"
+  case NUMBER:
+    return "number"
+  case AND:
+    return "&&"
+  case OR:
+    return "||"
+  case CLASS:
+    return "class"
+  case ELSE:
+    return "else"
+  case FALSE:
+    return "false"
+  case FUN:
+    return "fun"
+  case FOR:
+    return "for"
+  case IF:
+    return "if"
+  case NIL:
+    return "nil"
+  case PRINT:
+    return "print"
+  case RETURN:
+    return "return"
+  case SUPER:
+    return "super"
+  case THIS:
+    return "this"
+  case TRUE:
+    return "true"
+  case VAR:
+    return "var"
+  case WHILE:
+    return "while"
+  case EOF:
+    return "EOF"
+  case COMMENT:
+    return "Comment"
+  }
+  return "Unknown Token"
+}
 
 type Token struct {
   Type  TokenType
@@ -60,26 +147,40 @@ func (t Token) String() string {
   return fmt.Sprintf("Token<%v, %v, %v>", t.Type, t.Value, t.Line)
 }
 
-var CharTokensMap = map[string]TokenType{
-  "(":  LEFTPAREN,
-  ")":  RIGHTPAREN,
-  "{":  LEFTBRACE,
-  "}":  RIGHTBRACE,
-  ",":  COMMA,
-  ".":  DOT,
-  "-":  MINUS,
-  "+":  PLUS,
-  ";":  SEMICOLON,
-  "/":  DIVIDE,
-  "*":  MULTIPLY,
-  "!":  BANG,
-  "=":  EQUAL,
-  ">":  GREATER,
-  "<":  LESS,
-  "!=": BANGEQUAL,
-  "==": DOUBLEEQUAL,
-  ">=": GREATEREQUAL,
-  "<=": LESSEQUAL,
-  "&&": AND,
-  "||": OR,
+var _tokenMap = map[string]TokenType{
+  "(":      LEFTPAREN,
+  ")":      RIGHTPAREN,
+  "{":      LEFTBRACE,
+  "}":      RIGHTBRACE,
+  ",":      COMMA,
+  ".":      DOT,
+  "-":      MINUS,
+  "+":      PLUS,
+  ";":      SEMICOLON,
+  "/":      DIVIDE,
+  "*":      MULTIPLY,
+  "!":      BANG,
+  "=":      EQUAL,
+  ">":      GREATER,
+  "<":      LESS,
+  "!=":     BANGEQUAL,
+  "==":     DOUBLEEQUAL,
+  ">=":     GREATEREQUAL,
+  "<=":     LESSEQUAL,
+  "&&":     AND,
+  "||":     OR,
+  "class":  CLASS,
+  "else":   ELSE,
+  "false":  FALSE,
+  "fun":    FUN,
+  "for":    FOR,
+  "if":     IF,
+  "nil":    NIL,
+  "print":  PRINT,
+  "return": RETURN,
+  "super":  SUPER,
+  "this":   THIS,
+  "true":   TRUE,
+  "var":    VAR,
+  "while":  WHILE,
 }
