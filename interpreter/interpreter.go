@@ -1,27 +1,30 @@
 package interpreter
 
 import (
-  "fmt"
-  "github.com/asatale/go-lox/interpreter/tokenizer"
-  "io"
+	"errors"
+	"fmt"
+	"github.com/asatale/go-lox/interpreter/tokenizer"
+	"io"
 )
+
+//Eof indicates end of file
+var EOFError = errors.New("End of data")
 
 // Run is top level exec routine
 func Run(source io.Reader) error {
 
-  tk := tokenizer.NewTokenizer(source)
+	tk := tokenizer.NewTokenizer(source)
 
-  for tk.Scan() {
-    token, err := tk.GetToken()
-    switch err {
-    case nil:
-      fmt.Println("Token: ", token)
-    case tokenizer.SourceEmpty:
-      break
-    default:
-      fmt.Println("Error: ", err)
-      return err
-    }
-  }
-  return nil
+	for {
+		token, err := tk.GetToken()
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return err
+		}
+		if token.Type == tokenizer.EOF {
+			break
+		}
+		fmt.Println("Token: ", token)
+	}
+	return EOFError
 }
