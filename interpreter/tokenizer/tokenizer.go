@@ -9,6 +9,11 @@ import (
 	"unicode"
 )
 
+const (
+	SINGLE_LINE_COMMENT = 0 // Single line comment
+	MULTI_LINE_COMMENT  = 1 // /*.....*/
+)
+
 // TokenError is error
 type TokenError struct {
 	msg  string
@@ -90,32 +95,22 @@ Loop:
 		}, nil
 	case "/":
 		nextChar, _, err := t.source.ReadRune()
-		if err != nil || string(nextChar) != "/" {
-			if err == nil {
+		if err == nil {
+			switch {
+			case string(nextChar) == "/":
+				return t.singleLineComment()
+			case string(nextChar) == "*":
+				return t.multiLineComment()
+			default:
 				t.source.UnreadRune()
 			}
-			return Token{
-				Type:  _tokenMap[string(rune)],
-				Value: string(rune),
-				Line:  t.lineNum,
-			}, nil
 		}
-		var b bytes.Buffer
-		for {
-			nextChar, _, err := t.source.ReadRune()
-			if err != nil || string(nextChar) == "\n" {
-				if err == nil {
-					t.source.UnreadRune()
-				}
-				t.lineNum++
-				return Token{
-					Type:  COMMENT,
-					Value: b.String(),
-					Line:  t.lineNum - 1,
-				}, nil
-			}
-			b.WriteRune(nextChar)
-		}
+		return Token{
+			Type:  _tokenMap[string(rune)],
+			Value: string(rune),
+			Line:  t.lineNum,
+		}, nil
+
 	case `"`:
 		var b bytes.Buffer
 		for {
@@ -191,7 +186,6 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 	result := validIdRegEx.MatchString(idString)
 
 	if result {
-		fmt.Printf("Input: %s, Result: %v\n", idString, result)
 		return Token{
 			Type:  IDENTIFIER,
 			Value: idString,
@@ -200,4 +194,50 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 	}
 
 	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", idString), t.lineNum)
+}
+
+func (t *tokenizer) singleLineComment() (Token, error) {
+	var b bytes.Buffer
+	for {
+		nextChar, _, err := t.source.ReadRune()
+		if err != nil || string(nextChar) == "\n" {
+			t.lineNum++
+			return Token{
+				Type:  COMMENT,
+				Value: b.String(),
+				Line:  t.lineNum - 1,
+			}, nil
+		}
+		b.WriteRune(nextChar)
+	}
+	return NullToken, emitError("TokenError", t.lineNum)
+}
+
+func (t *tokenizer) multiLineComment() (Token, error) {
+	var b bytes.Buffer
+	lineno := t.lineNum
+	for {
+		nextChar, _, err := t.source.ReadRune()
+		switch {
+		case err != nil:
+			return NullToken, emitError("Unterminated block comment", t.lineNum)
+		case string(nextChar) == "\n":
+			t.lineNum++
+		case string(nextChar) == "*":
+			nextChar, _, err := t.source.ReadRune()
+			if err == nil {
+				if string(nextChar) == "/" {
+					return Token{
+						Type:  COMMENT,
+						Value: b.String(),
+						Line:  lineno,
+					}, nil
+				} else {
+					t.source.UnreadRune()
+				}
+			}
+		}
+		b.WriteRune(nextChar)
+	}
+	return NullToken, emitError("Unterminated block comment", t.lineNum)
 }

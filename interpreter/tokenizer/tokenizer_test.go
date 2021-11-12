@@ -311,6 +311,30 @@ func TestMixedTokensTests(t *testing.T) {
 			},
 			errorExpected: false,
 		},
+		{
+			description: "Block comment",
+			source: bytes.NewBufferString(`
+      /*class Brunch < Breakfast {
+        drink() {
+           print "How about a Bloody Mary?";
+        }
+       }*/
+     `),
+			result: []TokenType{
+				COMMENT,
+			},
+			errorExpected: false,
+		},
+		{
+			description: "Block comment",
+			source: bytes.NewBufferString(`
+      /* **** / ** */
+     `),
+			result: []TokenType{
+				COMMENT,
+			},
+			errorExpected: false,
+		},
 	}
 	runTestcases(testCases, t)
 }
