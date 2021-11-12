@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"unicode"
 )
@@ -90,7 +91,9 @@ Loop:
 	case "/":
 		nextChar, _, err := t.source.ReadRune()
 		if err != nil || string(nextChar) != "/" {
-			t.source.UnreadRune()
+			if err == nil {
+				t.source.UnreadRune()
+			}
 			return Token{
 				Type:  _tokenMap[string(rune)],
 				Value: string(rune),
@@ -101,6 +104,9 @@ Loop:
 		for {
 			nextChar, _, err := t.source.ReadRune()
 			if err != nil || string(nextChar) == "\n" {
+				if err == nil {
+					t.source.UnreadRune()
+				}
 				t.lineNum++
 				return Token{
 					Type:  COMMENT,
@@ -116,7 +122,7 @@ Loop:
 			nextChar, _, err := t.source.ReadRune()
 			switch {
 			case err != nil:
-				return NullToken, emitError("TokenError", t.lineNum)
+				return NullToken, emitError("Unterminated \"", t.lineNum)
 			case string(nextChar) == `"`:
 				return Token{
 					Type:  STRING,
@@ -139,15 +145,14 @@ Loop:
 
 func (t *tokenizer) getComplexToken() (Token, error) {
 	var b bytes.Buffer
-	firstChar := unicode.MaxRune + 1
+
 	for t.source.Len() > 0 {
 		r, _, err := t.source.ReadRune()
 		if err != nil {
 			break
 		}
-		if firstChar == (unicode.MaxRune + 1) { // Store first char for valid identifier check
-			firstChar = r
-		}
+
+		// End scanning for any space/symbols/punct except for "_"
 		if unicode.IsSpace(r) || unicode.IsSymbol(r) || unicode.IsPunct(r) {
 			if string(r) != "_" {
 				t.source.UnreadRune()
@@ -180,12 +185,19 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}, nil
 	}
 
-	if !unicode.IsLetter(firstChar) {
-		return NullToken, emitError("Error Token", t.lineNum)
+	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z]+_?[a-zA-Z0-9]*$`)
+	idString := b.String()
+
+	result := validIdRegEx.MatchString(idString)
+
+	if result {
+		fmt.Printf("Input: %s, Result: %v\n", idString, result)
+		return Token{
+			Type:  IDENTIFIER,
+			Value: idString,
+			Line:  t.lineNum,
+		}, nil
 	}
-	return Token{
-		Type:  IDENTIFIER,
-		Value: b.String(),
-		Line:  t.lineNum,
-	}, nil
+
+	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", idString), t.lineNum)
 }

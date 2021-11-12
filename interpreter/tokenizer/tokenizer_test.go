@@ -45,8 +45,8 @@ func TestSingleTokensTests(t *testing.T) {
 		},
 		{
 			description:   `Test for token string "Hello World"  "Good Bye"`,
-			source:        bytes.NewBufferString(`"Hello World"`),
-			result:        []TokenType{STRING},
+			source:        bytes.NewBufferString(`"Hello World" "Bye World"`),
+			result:        []TokenType{STRING, STRING},
 			errorExpected: false,
 		},
 		{
@@ -73,6 +73,16 @@ func TestSingleTokensTests(t *testing.T) {
 			result:        []TokenType{COMMENT},
 			errorExpected: false,
 		},
+		{
+			description: "Test for multi-line Comment ",
+			source: bytes.NewBufferString(`
+        // This is a comment
+        // which continues on this line
+        // and ends here.
+      `),
+			result:        []TokenType{COMMENT},
+			errorExpected: false,
+		},
 	}
 	runTestcases(testCases, t)
 }
@@ -84,12 +94,13 @@ func TestMixedTokensTests(t *testing.T) {
 			source: bytes.NewBufferString(`
         print "Hello, world!";
         print breakfast; // "bagels".
+        // and coffee
         print 2+3;
       `),
 			result: []TokenType{
 				PRINT, STRING, SEMICOLON,
 				PRINT, IDENTIFIER, SEMICOLON, COMMENT,
-				PRINT, NUMBER, PLUS, NUMBER, SEMICOLON,
+				COMMENT, PRINT, NUMBER, PLUS, NUMBER, SEMICOLON,
 			},
 			errorExpected: false,
 		},
@@ -256,7 +267,7 @@ func TestMixedTokensTests(t *testing.T) {
 			errorExpected: false,
 		},
 		{
-			description: "Functions",
+			description: "Class",
 			source: bytes.NewBufferString(`
       class Breakfast {
           cook() {
@@ -282,6 +293,24 @@ func TestMixedTokensTests(t *testing.T) {
 			},
 			errorExpected: false,
 		},
+		{
+			description: "Inheritance",
+			source: bytes.NewBufferString(`
+      class Brunch < Breakfast {
+        drink() {
+           print "How about a Bloody Mary?";
+        }
+       }
+     `),
+			result: []TokenType{
+				CLASS, IDENTIFIER, LESS, IDENTIFIER, LEFTBRACE,
+				IDENTIFIER, LEFTPAREN, RIGHTPAREN, LEFTBRACE,
+				PRINT, STRING, SEMICOLON,
+				RIGHTBRACE,
+				RIGHTBRACE,
+			},
+			errorExpected: false,
+		},
 	}
 	runTestcases(testCases, t)
 }
@@ -299,11 +328,20 @@ func TestInvalidTokensTests(t *testing.T) {
 			errorExpected: true,
 		},
 		{
-			description: "Test invalid identifiers",
+			description: "Test invalid identifiers - starts with number",
 			source: bytes.NewBufferString(`
         2abc; // Identifier can not start with number
-        a-bc; // Identifiers can not contain "-"
       `),
+			result: []TokenType{
+				NULLTOKEN,
+			},
+			errorExpected: true,
+		},
+		{
+			description: "Test invalid identifier - starts with number",
+			source: bytes.NewBufferString(`
+		    12abc; // Identifiers can not start with number
+		  `),
 			result: []TokenType{
 				NULLTOKEN,
 			},
