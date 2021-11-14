@@ -9,11 +9,6 @@ import (
 	"unicode"
 )
 
-const (
-	SINGLE_LINE_COMMENT = 0 // Single line comment
-	MULTI_LINE_COMMENT  = 1 // /*.....*/
-)
-
 // TokenError is error
 type TokenError struct {
 	msg  string
@@ -60,7 +55,7 @@ Loop:
 				Line:  t.lineNum,
 			}, nil
 		}
-		return NullToken, emitError("IOError", t.lineNum)
+		return NullToken, emitError("Unknown IOError", t.lineNum)
 	}
 
 	switch string(rune) {
@@ -76,8 +71,7 @@ Loop:
 		}
 		goto Loop
 	case "!", "=", ">", "<":
-		var nextChar int32
-		nextChar, _, err = t.source.ReadRune()
+		nextChar, _, err := t.source.ReadRune()
 		if err != nil || string(nextChar) != "=" {
 			if err == nil {
 				t.source.UnreadRune()
@@ -148,13 +142,12 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}
 
 		// End scanning for any space/symbols/punct except for "_"
-		if unicode.IsSpace(r) || unicode.IsSymbol(r) || unicode.IsPunct(r) {
-			if string(r) != "_" {
-				t.source.UnreadRune()
-				break
-			}
+		if unicode.IsDigit(r) || unicode.IsLetter(r) || string(r) == "_" {
+			b.WriteRune(r)
+		} else {
+			t.source.UnreadRune()
+			break
 		}
-		b.WriteRune(r)
 	}
 
 	if _, ok := _tokenMap[b.String()]; ok {
@@ -180,20 +173,18 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}, nil
 	}
 
-	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z]+_?[a-zA-Z0-9]*$`)
-	idString := b.String()
-
-	result := validIdRegEx.MatchString(idString)
+	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z_]+[a-zA-Z0-9]*$`)
+	result := validIdRegEx.MatchString(b.String())
 
 	if result {
 		return Token{
 			Type:  IDENTIFIER,
-			Value: idString,
+			Value: b.String(),
 			Line:  t.lineNum,
 		}, nil
 	}
 
-	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", idString), t.lineNum)
+	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", b.String()), t.lineNum)
 }
 
 func (t *tokenizer) singleLineComment() (Token, error) {
