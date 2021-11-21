@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"unicode"
 )
@@ -54,7 +55,7 @@ Loop:
 				Line:  t.lineNum,
 			}, nil
 		}
-		return NullToken, emitError("IOError", t.lineNum)
+		return NullToken, emitError("Unknown IOError", t.lineNum)
 	}
 
 	switch string(rune) {
@@ -70,8 +71,7 @@ Loop:
 		}
 		goto Loop
 	case "!", "=", ">", "<":
-		var nextChar int32
-		nextChar, _, err = t.source.ReadRune()
+		nextChar, _, err := t.source.ReadRune()
 		if err != nil || string(nextChar) != "=" {
 			if err == nil {
 				t.source.UnreadRune()
@@ -89,34 +89,29 @@ Loop:
 		}, nil
 	case "/":
 		nextChar, _, err := t.source.ReadRune()
-		if err != nil || string(nextChar) != "/" {
-			t.source.UnreadRune()
-			return Token{
-				Type:  _tokenMap[string(rune)],
-				Value: string(rune),
-				Line:  t.lineNum,
-			}, nil
-		}
-		var b bytes.Buffer
-		for {
-			nextChar, _, err := t.source.ReadRune()
-			if err != nil || string(nextChar) == "\n" {
-				t.lineNum++
-				return Token{
-					Type:  COMMENT,
-					Value: b.String(),
-					Line:  t.lineNum - 1,
-				}, nil
+		if err == nil {
+			switch {
+			case string(nextChar) == "/":
+				return t.singleLineComment()
+			case string(nextChar) == "*":
+				return t.multiLineComment()
+			default:
+				t.source.UnreadRune()
 			}
-			b.WriteRune(nextChar)
 		}
+		return Token{
+			Type:  _tokenMap[string(rune)],
+			Value: string(rune),
+			Line:  t.lineNum,
+		}, nil
+
 	case `"`:
 		var b bytes.Buffer
 		for {
 			nextChar, _, err := t.source.ReadRune()
 			switch {
 			case err != nil:
-				return NullToken, emitError("TokenError", t.lineNum)
+				return NullToken, emitError("Unterminated \"", t.lineNum)
 			case string(nextChar) == `"`:
 				return Token{
 					Type:  STRING,
@@ -139,22 +134,20 @@ Loop:
 
 func (t *tokenizer) getComplexToken() (Token, error) {
 	var b bytes.Buffer
-	firstChar := unicode.MaxRune + 1
+
 	for t.source.Len() > 0 {
 		r, _, err := t.source.ReadRune()
 		if err != nil {
 			break
 		}
-		if firstChar == (unicode.MaxRune + 1) { // Store first char for valid identifier check
-			firstChar = r
+
+		// End scanning for any space/symbols/punct except for "_"
+		if unicode.IsDigit(r) || unicode.IsLetter(r) || string(r) == "_" {
+			b.WriteRune(r)
+		} else {
+			t.source.UnreadRune()
+			break
 		}
-		if unicode.IsSpace(r) || unicode.IsSymbol(r) || unicode.IsPunct(r) {
-			if string(r) != "_" {
-				t.source.UnreadRune()
-				break
-			}
-		}
-		b.WriteRune(r)
 	}
 
 	if _, ok := _tokenMap[b.String()]; ok {
@@ -180,12 +173,62 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}, nil
 	}
 
-	if !unicode.IsLetter(firstChar) {
-		return NullToken, emitError("Error Token", t.lineNum)
+	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z_]+[a-zA-Z0-9]*$`)
+	result := validIdRegEx.MatchString(b.String())
+
+	if result {
+		return Token{
+			Type:  IDENTIFIER,
+			Value: b.String(),
+			Line:  t.lineNum,
+		}, nil
 	}
-	return Token{
-		Type:  IDENTIFIER,
-		Value: b.String(),
-		Line:  t.lineNum,
-	}, nil
+
+	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", b.String()), t.lineNum)
+}
+
+func (t *tokenizer) singleLineComment() (Token, error) {
+	var b bytes.Buffer
+	for {
+		nextChar, _, err := t.source.ReadRune()
+		if err != nil || string(nextChar) == "\n" {
+			t.lineNum++
+			return Token{
+				Type:  COMMENT,
+				Value: b.String(),
+				Line:  t.lineNum - 1,
+			}, nil
+		}
+		b.WriteRune(nextChar)
+	}
+	return NullToken, emitError("TokenError", t.lineNum)
+}
+
+func (t *tokenizer) multiLineComment() (Token, error) {
+	var b bytes.Buffer
+	lineno := t.lineNum
+	for {
+		nextChar, _, err := t.source.ReadRune()
+		switch {
+		case err != nil:
+			return NullToken, emitError("Unterminated block comment", t.lineNum)
+		case string(nextChar) == "\n":
+			t.lineNum++
+		case string(nextChar) == "*":
+			nextChar, _, err := t.source.ReadRune()
+			if err == nil {
+				if string(nextChar) == "/" {
+					return Token{
+						Type:  COMMENT,
+						Value: b.String(),
+						Line:  lineno,
+					}, nil
+				} else {
+					t.source.UnreadRune()
+				}
+			}
+		}
+		b.WriteRune(nextChar)
+	}
+	return NullToken, emitError("Unterminated block comment", t.lineNum)
 }
