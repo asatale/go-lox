@@ -49,10 +49,10 @@ Loop:
 	rune, _, err := t.source.ReadRune()
 	if err != nil {
 		if err == io.EOF {
-			return Token{
-				Type:  EOF,
-				Value: "EOF",
-				Line:  t.lineNum,
+			return _token{
+				_type:  EOF,
+				_value: "EOF",
+				_line:  t.lineNum,
 			}, nil
 		}
 		return NullToken, emitError("Unknown IOError", t.lineNum)
@@ -60,10 +60,10 @@ Loop:
 
 	switch string(rune) {
 	case "(", ")", "{", "}", ",", ".", "-", "+", ";", "*":
-		return Token{
-			Type:  _tokenMap[string(rune)],
-			Value: string(rune),
-			Line:  t.lineNum,
+		return _token{
+			_type:  _tokenMap[string(rune)],
+			_value: string(rune),
+			_line:  t.lineNum,
 		}, nil
 	case "\t", " ", "\n":
 		if string(rune) == "\n" {
@@ -76,16 +76,16 @@ Loop:
 			if err == nil {
 				t.source.UnreadRune()
 			}
-			return Token{
-				Type:  _tokenMap[string(rune)],
-				Value: string(rune),
-				Line:  t.lineNum,
+			return _token{
+				_type:  _tokenMap[string(rune)],
+				_value: string(rune),
+				_line:  t.lineNum,
 			}, nil
 		}
-		return Token{
-			Type:  _tokenMap[string(rune)+string(nextChar)],
-			Value: string(rune) + string(nextChar),
-			Line:  t.lineNum,
+		return _token{
+			_type:  _tokenMap[string(rune)+string(nextChar)],
+			_value: string(rune) + string(nextChar),
+			_line:  t.lineNum,
 		}, nil
 	case "/":
 		nextChar, _, err := t.source.ReadRune()
@@ -99,10 +99,10 @@ Loop:
 				t.source.UnreadRune()
 			}
 		}
-		return Token{
-			Type:  _tokenMap[string(rune)],
-			Value: string(rune),
-			Line:  t.lineNum,
+		return _token{
+			_type:  _tokenMap[string(rune)],
+			_value: string(rune),
+			_line:  t.lineNum,
 		}, nil
 
 	case `"`:
@@ -113,10 +113,10 @@ Loop:
 			case err != nil:
 				return NullToken, emitError("Unterminated \"", t.lineNum)
 			case string(nextChar) == `"`:
-				return Token{
-					Type:  STRING,
-					Value: b.String(),
-					Line:  t.lineNum,
+				return _token{
+					_type:  STRING,
+					_value: b.String(),
+					_line:  t.lineNum,
 				}, nil
 			case string(nextChar) == "\n":
 				t.lineNum++
@@ -151,25 +151,25 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 	}
 
 	if _, ok := _tokenMap[b.String()]; ok {
-		return Token{
-			Type:  _tokenMap[b.String()],
-			Value: b.String(),
-			Line:  t.lineNum,
+		return _token{
+			_type:  _tokenMap[b.String()],
+			_value: b.String(),
+			_line:  t.lineNum,
 		}, nil
 	}
 
 	if _, err := strconv.ParseFloat(b.String(), 64); err == nil {
-		return Token{
-			Type:  NUMBER,
-			Value: b.String(),
-			Line:  t.lineNum,
+		return _token{
+			_type:  NUMBER,
+			_value: b.String(),
+			_line:  t.lineNum,
 		}, nil
 	}
 	if _, err := strconv.ParseInt(b.String(), 10, 64); err == nil {
-		return Token{
-			Type:  NUMBER,
-			Value: b.String(),
-			Line:  t.lineNum,
+		return _token{
+			_type:  NUMBER,
+			_value: b.String(),
+			_line:  t.lineNum,
 		}, nil
 	}
 
@@ -177,10 +177,10 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 	result := validIdRegEx.MatchString(b.String())
 
 	if result {
-		return Token{
-			Type:  IDENTIFIER,
-			Value: b.String(),
-			Line:  t.lineNum,
+		return _token{
+			_type:  IDENTIFIER,
+			_value: b.String(),
+			_line:  t.lineNum,
 		}, nil
 	}
 
@@ -193,10 +193,10 @@ func (t *tokenizer) singleLineComment() (Token, error) {
 		nextChar, _, err := t.source.ReadRune()
 		if err != nil || string(nextChar) == "\n" {
 			t.lineNum++
-			return Token{
-				Type:  COMMENT,
-				Value: b.String(),
-				Line:  t.lineNum - 1,
+			return _token{
+				_type:  COMMENT,
+				_value: b.String(),
+				_line:  t.lineNum - 1,
 			}, nil
 		}
 		b.WriteRune(nextChar)
@@ -218,10 +218,10 @@ func (t *tokenizer) multiLineComment() (Token, error) {
 			nextChar, _, err := t.source.ReadRune()
 			if err == nil {
 				if string(nextChar) == "/" {
-					return Token{
-						Type:  COMMENT,
-						Value: b.String(),
-						Line:  lineno,
+					return _token{
+						_type:  COMMENT,
+						_value: b.String(),
+						_line:  lineno,
 					}, nil
 				} else {
 					t.source.UnreadRune()

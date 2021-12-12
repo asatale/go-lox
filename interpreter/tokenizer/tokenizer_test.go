@@ -20,8 +20,8 @@ func runTestcases(testCases []testCase, t *testing.T) {
 			switch {
 			case err == nil && testCase.errorExpected:
 				t.Errorf("%v: Error expected. Got nil", testCase.description)
-			case err == nil && token.Type != tokenType:
-				t.Errorf("%v: Token expected: %v, Got: %v ", testCase.description, tokenType, token.Type)
+			case err == nil && token.Type() != tokenType:
+				t.Errorf("%v: Token expected: %v, Got: %v ", testCase.description, tokenType, token.Type())
 			case err != nil && !testCase.errorExpected:
 				t.Errorf("%v: Error expected: nil, Got: %v", testCase.description, err)
 			}

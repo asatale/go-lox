@@ -21,7 +21,7 @@ func Run(source io.Reader) error {
 			fmt.Println("Error: ", err)
 			return err
 		}
-		if token.Type == tokenizer.EOF {
+		if token.Type() == tokenizer.EOF {
 			break
 		}
 		fmt.Println("Token: ", token)

@@ -138,18 +138,15 @@ func (t TokenType) String() string {
 	return "Unknown Token"
 }
 
-type Token struct {
-	Type  TokenType
-	Value string
-	Line  int
+type _token struct {
+	_type  TokenType
+	_value string
+	_line  int
 }
 
-var NullToken = Token{
-	Type: NULLTOKEN,
-}
-
-func (t Token) String() string {
-	return fmt.Sprintf("Token{ Type:%v, Value: %v, Line: %v}", t.Type, t.Value, t.Line)
+var NullToken = _token{
+	_type:  NULLTOKEN, // "type" is reserved keyword in go.
+	_value: "",
 }
 
 var _tokenMap = map[string]TokenType{
@@ -188,4 +185,28 @@ var _tokenMap = map[string]TokenType{
 	"true":   TRUE,
 	"var":    VAR,
 	"while":  WHILE,
+}
+
+//Token is public interface representing a scanned token
+type Token interface {
+	Type() TokenType
+	Value() string
+	Line() int
+	String() string
+}
+
+func (t _token) Type() TokenType {
+	return t._type
+}
+
+func (t _token) Value() string {
+	return t._value
+}
+
+func (t _token) Line() int {
+	return t._line
+}
+
+func (t _token) String() string {
+	return fmt.Sprintf("Token{ Type:%v, Value: %v, Line: %v}", t._type, t._value, t._line)
 }
