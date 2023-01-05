@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-//Eof indicates end of file
+// Eof indicates end of file
 var EOFError = errors.New("End of data")
 
 // Run is top level exec routine

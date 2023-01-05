@@ -51,8 +51,14 @@ func TestSingleTokensTests(t *testing.T) {
 		},
 		{
 			description:   "Test for token integer number",
-			source:        bytes.NewBufferString("42 3.14"),
-			result:        []TokenType{NUMBER, NUMBER},
+			source:        bytes.NewBufferString("42 1 100000"),
+			result:        []TokenType{INTEGER, INTEGER, INTEGER},
+			errorExpected: false,
+		},
+		{
+			description:   "Test for token float number",
+			source:        bytes.NewBufferString("42.0 100000.00"),
+			result:        []TokenType{FLOAT, FLOAT},
 			errorExpected: false,
 		},
 		{
@@ -76,10 +82,10 @@ func TestSingleTokensTests(t *testing.T) {
 		{
 			description: "Test for multi-line Comment ",
 			source: bytes.NewBufferString(`
-        // This is a comment
-        // which continues on this line
-        // and ends here.
-      `),
+		    // This is a comment
+		    // which continues on this line
+		    // and ends here.
+		  `),
 			result:        []TokenType{COMMENT},
 			errorExpected: false,
 		},
@@ -100,7 +106,7 @@ func TestMixedTokensTests(t *testing.T) {
 			result: []TokenType{
 				PRINT, STRING, SEMICOLON,
 				PRINT, IDENTIFIER, SEMICOLON, COMMENT,
-				COMMENT, PRINT, NUMBER, PLUS, NUMBER, SEMICOLON,
+				COMMENT, PRINT, INTEGER, PLUS, INTEGER, SEMICOLON,
 			},
 			errorExpected: false,
 		},
@@ -141,7 +147,7 @@ func TestMixedTokensTests(t *testing.T) {
 				IDENTIFIER, LESSEQUAL, IDENTIFIER, SEMICOLON,
 				IDENTIFIER, GREATER, IDENTIFIER, SEMICOLON,
 				IDENTIFIER, GREATEREQUAL, IDENTIFIER, SEMICOLON,
-				NUMBER, DOUBLEEQUAL, NUMBER, SEMICOLON, COMMENT,
+				INTEGER, DOUBLEEQUAL, INTEGER, SEMICOLON, COMMENT,
 				STRING, BANGEQUAL, STRING, SEMICOLON, COMMENT},
 			errorExpected: false,
 		},
@@ -195,7 +201,7 @@ func TestMixedTokensTests(t *testing.T) {
 				VAR, IDENTIFIER, EQUAL, STRING, SEMICOLON,
 				VAR, IDENTIFIER, SEMICOLON,
 				VAR, IDENTIFIER, EQUAL, STRING, SEMICOLON,
-				VAR, IDENTIFIER, EQUAL, LEFTPAREN, IDENTIFIER, PLUS, IDENTIFIER, RIGHTPAREN, DIVIDE, NUMBER, SEMICOLON,
+				VAR, IDENTIFIER, EQUAL, LEFTPAREN, IDENTIFIER, PLUS, IDENTIFIER, RIGHTPAREN, DIVIDE, INTEGER, SEMICOLON,
 			},
 			errorExpected: false,
 		},
@@ -225,13 +231,13 @@ func TestMixedTokensTests(t *testing.T) {
 				PRINT, STRING, SEMICOLON,
 				RIGHTBRACE,
 
-				VAR, IDENTIFIER, EQUAL, NUMBER, SEMICOLON,
-				WHILE, LEFTPAREN, IDENTIFIER, LESS, NUMBER, RIGHTPAREN, LEFTBRACE,
+				VAR, IDENTIFIER, EQUAL, INTEGER, SEMICOLON,
+				WHILE, LEFTPAREN, IDENTIFIER, LESS, INTEGER, RIGHTPAREN, LEFTBRACE,
 				PRINT, IDENTIFIER, SEMICOLON,
-				IDENTIFIER, EQUAL, IDENTIFIER, PLUS, NUMBER, SEMICOLON,
+				IDENTIFIER, EQUAL, IDENTIFIER, PLUS, INTEGER, SEMICOLON,
 				RIGHTBRACE,
 
-				FOR, LEFTPAREN, VAR, IDENTIFIER, EQUAL, NUMBER, SEMICOLON, IDENTIFIER, LESS, NUMBER, SEMICOLON, IDENTIFIER, EQUAL, IDENTIFIER, PLUS, NUMBER, RIGHTPAREN, LEFTBRACE,
+				FOR, LEFTPAREN, VAR, IDENTIFIER, EQUAL, INTEGER, SEMICOLON, IDENTIFIER, LESS, INTEGER, SEMICOLON, IDENTIFIER, EQUAL, IDENTIFIER, PLUS, INTEGER, RIGHTPAREN, LEFTBRACE,
 				PRINT, IDENTIFIER, SEMICOLON,
 				RIGHTBRACE,
 			},

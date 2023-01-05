@@ -6,6 +6,7 @@ import (
 	"io"
 	"regexp"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -142,7 +143,7 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}
 
 		// End scanning for any space/symbols/punct except for "_"
-		if unicode.IsDigit(r) || unicode.IsLetter(r) || string(r) == "_" {
+		if unicode.IsDigit(r) || unicode.IsLetter(r) || string(r) == "_" || string(r) == "." {
 			b.WriteRune(r)
 		} else {
 			t.source.UnreadRune()
@@ -158,16 +159,20 @@ func (t *tokenizer) getComplexToken() (Token, error) {
 		}, nil
 	}
 
-	if _, err := strconv.ParseFloat(b.String(), 64); err == nil {
+	fmt.Println("Checking for numbers: ", b.String())
+	if strings.ContainsAny(b.String(), ".") {
+		fmt.Println("Parsing floating numbers")
+		if _, err := strconv.ParseFloat(b.String(), 64); err == nil {
+			return _token{
+				_type:  FLOAT,
+				_value: b.String(),
+				_line:  t.lineNum,
+			}, nil
+		}
+	} else if _, err := strconv.ParseInt(b.String(), 10, 64); err == nil {
+		fmt.Println("Parsing integer numbers")
 		return _token{
-			_type:  NUMBER,
-			_value: b.String(),
-			_line:  t.lineNum,
-		}, nil
-	}
-	if _, err := strconv.ParseInt(b.String(), 10, 64); err == nil {
-		return _token{
-			_type:  NUMBER,
+			_type:  INTEGER,
 			_value: b.String(),
 			_line:  t.lineNum,
 		}, nil

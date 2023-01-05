@@ -27,9 +27,10 @@ const (
 	GREATEREQUAL                  // ">="
 	LESS                          // "<"
 	LESSEQUAL                     // "<="
-	IDENTIFIER                    // E.g. "i"
+	IDENTIFIER                    // E.g. i
 	STRING                        // E.g. "Hello"
-	NUMBER                        // E.g. 42, 3.14
+	INTEGER                       // E.g. 42
+	FLOAT                         // E.g. 3.14
 	AND                           // &&
 	OR                            // "||"
 	CLASS                         // "class"
@@ -96,8 +97,10 @@ func (t TokenType) String() string {
 		return "identifier"
 	case STRING:
 		return "string"
-	case NUMBER:
-		return "number"
+	case INTEGER:
+		return "integer"
+	case FLOAT:
+		return "float"
 	case AND:
 		return "and"
 	case OR:
@@ -187,7 +190,7 @@ var _tokenMap = map[string]TokenType{
 	"while":  WHILE,
 }
 
-//Token is public interface representing a scanned token
+// Token is public interface representing a scanned token
 type Token interface {
 	Type() TokenType
 	Value() string
