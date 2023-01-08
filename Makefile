@@ -6,7 +6,7 @@ format:
 
 .PHONY: build
 build: format
-	@go build ./...
+	@go build
 
 
 .PHONY: test
