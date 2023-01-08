@@ -167,24 +167,36 @@ func (tk *tokenizer) processComplexToken() (Token, error) {
 		}, nil
 	}
 
-	if _, err := strconv.ParseFloat(strToken, 64); err == nil {
-		return _token{
-			_type:  FLOAT,
-			_value: strToken,
-			_line:  tk.lineNum,
-		}, nil
+	regEx := regexp.MustCompile(`^[0-9]+\.[0-9]*$`)
+	result := regEx.MatchString(strToken)
+
+	if result {
+		if _, err := strconv.ParseFloat(strToken, 64); err == nil {
+			return _token{
+				_type:  FLOAT,
+				_value: strToken,
+				_line:  tk.lineNum,
+			}, nil
+		}
+		return NullToken, emitError(fmt.Sprintf("Invalid float token\"%s\"", strToken), tk.lineNum)
 	}
 
-	if _, ok := _tokenMap[strToken]; ok {
-		return _token{
-			_type:  _tokenMap[strToken],
-			_value: strToken,
-			_line:  tk.lineNum,
-		}, nil
+	regEx = regexp.MustCompile(`^[0-9]+$`)
+	result = regEx.MatchString(strToken)
+
+	if result {
+		if _, ok := _tokenMap[strToken]; ok {
+			return _token{
+				_type:  _tokenMap[strToken],
+				_value: strToken,
+				_line:  tk.lineNum,
+			}, nil
+		}
+		return NullToken, emitError(fmt.Sprintf("Invalid integer token\"%s\"", strToken), tk.lineNum)
 	}
 
-	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z_]+[a-zA-Z0-9]*$`)
-	result := validIdRegEx.MatchString(strToken)
+	regEx = regexp.MustCompile(`^[a-zA-Z_]+[a-zA-Z0-9]*$`)
+	result = regEx.MatchString(strToken)
 
 	if result {
 		return _token{
