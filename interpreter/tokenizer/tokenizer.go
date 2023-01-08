@@ -1,239 +1,240 @@
 package tokenizer
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"regexp"
 	"strconv"
-	"strings"
-	"unicode"
 )
-
-// TokenError is error
-type TokenError struct {
-	msg  string
-	line int
-}
-
-func (e TokenError) Error() string {
-	return fmt.Sprintf("%s at %d", e.msg, e.line)
-}
-
-func emitError(s string, l int) error {
-	return &TokenError{msg: s, line: l}
-}
-
-type tokenizer struct {
-	source  *bytes.Buffer
-	index   int
-	lineNum int
-}
 
 // Tokenizer is interface for token generation
 type Tokenizer interface {
 	GetToken() (Token, error)
 }
 
+type tokenizer struct {
+	src     *symReader
+	lineNum int
+}
+
 // NewTokenizer creates new instance of tokenizer
 func NewTokenizer(source io.Reader) Tokenizer {
-	buf := bytes.NewBuffer([]byte{})
-	buf.ReadFrom(source)
 	return &tokenizer{
-		source: buf,
+		src: initSymReader(source),
 	}
 }
 
 // GetToken returns next token
-func (t *tokenizer) GetToken() (Token, error) {
+func (tk *tokenizer) GetToken() (Token, error) {
 Loop:
-	rune, _, err := t.source.ReadRune()
+	sym, err := tk.src.peekNext(1)
 	if err != nil {
-		if err == io.EOF {
+		if err == EOFError {
 			return _token{
 				_type:  EOF,
 				_value: "EOF",
-				_line:  t.lineNum,
+				_line:  tk.lineNum,
 			}, nil
 		}
-		return NullToken, emitError("Unknown IOError", t.lineNum)
+		return NullToken, emitError("Unknown IOError", tk.lineNum)
 	}
 
-	switch string(rune) {
+	switch sym {
 	case "(", ")", "{", "}", ",", ".", "-", "+", ";", "*":
+		tk.src.consumeNext(1)
 		return _token{
-			_type:  _tokenMap[string(rune)],
-			_value: string(rune),
-			_line:  t.lineNum,
+			_type:  _tokenMap[sym],
+			_value: sym,
+			_line:  tk.lineNum,
 		}, nil
 	case "\t", " ", "\n":
-		if string(rune) == "\n" {
-			t.lineNum++
+		tk.src.consumeNext(1)
+		if sym == "\n" {
+			tk.lineNum++
 		}
 		goto Loop
 	case "!", "=", ">", "<":
-		nextChar, _, err := t.source.ReadRune()
-		if err != nil || string(nextChar) != "=" {
-			if err == nil {
-				t.source.UnreadRune()
+		nextSym, err := tk.src.peekNext(2)
+		if err == nil {
+			if nextSym != "=" {
+				tk.src.consumeNext(1)
+				return _token{
+					_type:  _tokenMap[sym],
+					_value: sym,
+					_line:  tk.lineNum,
+				}, nil
 			}
-			return _token{
-				_type:  _tokenMap[string(rune)],
-				_value: string(rune),
-				_line:  t.lineNum,
-			}, nil
+		} else {
+			return NullToken, emitError("Unknown IOError", tk.lineNum)
 		}
+		tk.src.consumeNext(2)
 		return _token{
-			_type:  _tokenMap[string(rune)+string(nextChar)],
-			_value: string(rune) + string(nextChar),
-			_line:  t.lineNum,
+			_type:  _tokenMap[sym+nextSym],
+			_value: sym + nextSym,
+			_line:  tk.lineNum,
 		}, nil
 	case "/":
-		nextChar, _, err := t.source.ReadRune()
+		nextSym, err := tk.src.peekNext(2)
 		if err == nil {
 			switch {
-			case string(nextChar) == "/":
-				return t.singleLineComment()
-			case string(nextChar) == "*":
-				return t.multiLineComment()
-			default:
-				t.source.UnreadRune()
+			case nextSym == "/":
+				tk.src.consumeNext(2)
+				return tk.processSingleLineComment()
+			case string(nextSym) == "*":
+				tk.src.consumeNext(2)
+				return tk.processMultiLineComment()
 			}
 		}
+		tk.src.consumeNext(1)
 		return _token{
-			_type:  _tokenMap[string(rune)],
-			_value: string(rune),
-			_line:  t.lineNum,
+			_type:  _tokenMap[sym],
+			_value: sym,
+			_line:  tk.lineNum,
 		}, nil
 
 	case `"`:
-		var b bytes.Buffer
+		var strToken string
+		tk.src.consumeNext(1)
 		for {
-			nextChar, _, err := t.source.ReadRune()
+			nextSym, err := tk.src.getNext()
 			switch {
 			case err != nil:
-				return NullToken, emitError("Unterminated \"", t.lineNum)
-			case string(nextChar) == `"`:
+				return NullToken, emitError("Unterminated \"", tk.lineNum)
+			case nextSym == `"`:
 				return _token{
 					_type:  STRING,
-					_value: b.String(),
-					_line:  t.lineNum,
+					_value: strToken,
+					_line:  tk.lineNum,
 				}, nil
-			case string(nextChar) == "\n":
-				t.lineNum++
+			case nextSym == "\n":
+				tk.lineNum++
 			}
-			b.WriteRune(nextChar)
+			strToken += nextSym
 		}
 	default:
-		t.source.UnreadRune()
-		tk, err := t.getComplexToken()
+		tk, err := tk.processComplexToken()
 		return tk, err
 	}
 	// Should not reach here
-	return NullToken, emitError("TokenError", t.lineNum)
+	return NullToken, emitError("TokenError", tk.lineNum)
 }
 
-func (t *tokenizer) getComplexToken() (Token, error) {
-	var b bytes.Buffer
+func isDigit(s string) bool {
+	var regEx = regexp.MustCompile(`^[0-9]+`)
+	if regEx.MatchString(s) {
+		return true
+	}
+	return false
+}
 
-	for t.source.Len() > 0 {
-		r, _, err := t.source.ReadRune()
+func isAlpha(s string) bool {
+	var regEx = regexp.MustCompile(`^[a-zA-Z]+`)
+	if regEx.MatchString(s) {
+		return true
+	}
+	return false
+}
+
+func (tk *tokenizer) processComplexToken() (Token, error) {
+	var strToken string
+
+	for {
+		sym, err := tk.src.peekNext(1)
 		if err != nil {
 			break
 		}
-
-		// End scanning for any space/symbols/punct except for "_"
-		if unicode.IsDigit(r) || unicode.IsLetter(r) || string(r) == "_" || string(r) == "." {
-			b.WriteRune(r)
-		} else {
-			t.source.UnreadRune()
-			break
+		switch {
+		case isDigit(sym), isAlpha(sym), sym == "_":
+			tk.src.consumeNext(1)
+			strToken += sym
+			continue
+		case sym == ".":
+			nextSym, _ := tk.src.peekNext(2)
+			if isDigit(nextSym) {
+				strToken += (sym + nextSym)
+				tk.src.consumeNext(2)
+				continue
+			}
 		}
+		break
 	}
 
-	if _, ok := _tokenMap[b.String()]; ok {
+	if _, err := strconv.ParseInt(strToken, 10, 64); err == nil {
 		return _token{
-			_type:  _tokenMap[b.String()],
-			_value: b.String(),
-			_line:  t.lineNum,
+			_type:  INTEGER,
+			_value: strToken,
+			_line:  tk.lineNum,
 		}, nil
 	}
 
-	fmt.Println("Checking for numbers: ", b.String())
-	if strings.ContainsAny(b.String(), ".") {
-		fmt.Println("Parsing floating numbers")
-		if _, err := strconv.ParseFloat(b.String(), 64); err == nil {
-			return _token{
-				_type:  FLOAT,
-				_value: b.String(),
-				_line:  t.lineNum,
-			}, nil
-		}
-	} else if _, err := strconv.ParseInt(b.String(), 10, 64); err == nil {
-		fmt.Println("Parsing integer numbers")
+	if _, err := strconv.ParseFloat(strToken, 64); err == nil {
 		return _token{
-			_type:  INTEGER,
-			_value: b.String(),
-			_line:  t.lineNum,
+			_type:  FLOAT,
+			_value: strToken,
+			_line:  tk.lineNum,
+		}, nil
+	}
+
+	if _, ok := _tokenMap[strToken]; ok {
+		return _token{
+			_type:  _tokenMap[strToken],
+			_value: strToken,
+			_line:  tk.lineNum,
 		}, nil
 	}
 
 	var validIdRegEx = regexp.MustCompile(`^[a-zA-Z_]+[a-zA-Z0-9]*$`)
-	result := validIdRegEx.MatchString(b.String())
+	result := validIdRegEx.MatchString(strToken)
 
 	if result {
 		return _token{
 			_type:  IDENTIFIER,
-			_value: b.String(),
-			_line:  t.lineNum,
+			_value: strToken,
+			_line:  tk.lineNum,
 		}, nil
 	}
 
-	return NullToken, emitError(fmt.Sprintf("Invalid identifier \"%s\"", b.String()), t.lineNum)
+	return NullToken, emitError(fmt.Sprintf("Invalid token \"%s\"", strToken), tk.lineNum)
 }
 
-func (t *tokenizer) singleLineComment() (Token, error) {
-	var b bytes.Buffer
+func (tk *tokenizer) processSingleLineComment() (Token, error) {
+	var strToken string
 	for {
-		nextChar, _, err := t.source.ReadRune()
-		if err != nil || string(nextChar) == "\n" {
-			t.lineNum++
+		sym, err := tk.src.getNext()
+		if err != nil || sym == "\n" {
+			tk.lineNum++
 			return _token{
 				_type:  COMMENT,
-				_value: b.String(),
-				_line:  t.lineNum - 1,
+				_value: strToken,
+				_line:  tk.lineNum - 1,
 			}, nil
 		}
-		b.WriteRune(nextChar)
+		strToken += sym
 	}
-	return NullToken, emitError("TokenError", t.lineNum)
+	return NullToken, emitError("TokenError", tk.lineNum)
 }
 
-func (t *tokenizer) multiLineComment() (Token, error) {
-	var b bytes.Buffer
-	lineno := t.lineNum
+func (tk *tokenizer) processMultiLineComment() (Token, error) {
+	var strToken string
+	lineno := tk.lineNum
 	for {
-		nextChar, _, err := t.source.ReadRune()
+		sym, err := tk.src.getNext()
 		switch {
 		case err != nil:
-			return NullToken, emitError("Unterminated block comment", t.lineNum)
-		case string(nextChar) == "\n":
-			t.lineNum++
-		case string(nextChar) == "*":
-			nextChar, _, err := t.source.ReadRune()
-			if err == nil {
-				if string(nextChar) == "/" {
-					return _token{
-						_type:  COMMENT,
-						_value: b.String(),
-						_line:  lineno,
-					}, nil
-				} else {
-					t.source.UnreadRune()
-				}
+			return NullToken, emitError("Unterminated block comment", tk.lineNum)
+		case sym == "\n":
+			tk.lineNum++
+		case sym == "*":
+			if nextSym, err := tk.src.peekNext(1); err == nil && nextSym == "/" {
+				tk.src.consumeNext(1)
+				return _token{
+					_type:  COMMENT,
+					_value: strToken,
+					_line:  lineno,
+				}, nil
 			}
 		}
-		b.WriteRune(nextChar)
+		strToken += sym
 	}
-	return NullToken, emitError("Unterminated block comment", t.lineNum)
+	return NullToken, emitError("Unterminated block comment", tk.lineNum)
 }
